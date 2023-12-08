@@ -1,8 +1,20 @@
 ﻿namespace AdventOfCode;
 
+using System.Numerics;
+using MathNet.Numerics;
+
 public partial class Day_08 : BaseDay
 {
     private readonly string _input;
+
+    class RunningInstruction(string instruction, string id)
+    {
+        public string Instruction = instruction;
+        public string Id = id;
+        public Dictionary<string, int> Seen = [];
+        public int loopSize = -1;
+        public int loopStart = -1;
+    }
 
     public Day_08()
     {
@@ -77,35 +89,52 @@ public partial class Day_08 : BaseDay
 
         int steps = 0;
 
-        List<Tuple<string, string, HashSet<string>>> runningInstructions = map.Keys.Where(i => i[2] == 'A').Select(i =>
+        List<RunningInstruction> runningInstructions = map.Keys.Where(i => i[2] == 'A').Select(i =>
         {
-            return new Tuple<string, string, HashSet<string>>(i, i, []);
+            return new RunningInstruction(i, i);
         }).ToList();
 
+        List<RunningInstruction> completed = [];
+
         int i = 0;
-        while (true)
+        while (runningInstructions.Count > 0)
         {
             steps += 1;
 
             char instruction = instructions[i];
 
-            string[] temp = new string[runningInstructions.Length];
-
-            for (int j = 0; j < temp.Length)
-                runningInstructions = runningInstructions.Select(i =>
-                {
-                    return instruction == 'L' ? map[i][..3] : map[i][3..];
-                });
-
-            if (runningInstructions.All(s => s[2] == 'Z'))
+            foreach (RunningInstruction ri in runningInstructions)
             {
-                break;
+                ri.Instruction = instruction == 'L' ? map[ri.Instruction][..3] : map[ri.Instruction][3..];
+
+                if (ri.Instruction[2] != 'Z')
+                {
+                    continue;
+                }
+
+                string current = ri.Instruction + i;
+
+                if (ri.Seen.TryGetValue(current, out int value))
+                {
+                    ri.loopSize = steps - value;
+                    ri.loopStart = value;
+                    completed.Add(ri);
+                }
+                else
+                {
+                    ri.Seen[current] = steps;
+                }
+
+                runningInstructions = runningInstructions.Where(ri => ri.loopStart == -1).ToList();
             }
 
             i = (i + 1) % instructions.Length;
         }
 
-        return new(steps.ToString());
+        // They were nice with how the loops are created, so we don't need all the extra stuff we collected
+        BigInteger[] loopSizes = completed.Select(ri => new BigInteger(ri.loopSize)).ToArray();
+
+        return new(Euclid.LeastCommonMultiple(loopSizes).ToString());
     }
 
     [GeneratedRegex(@"(\w+) = \((\w+), (\w+)\)")]
